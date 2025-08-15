@@ -1,0 +1,289 @@
+-- 获取Roblox核心服务
+local UserInputService = game:GetService("UserInputService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local TweenService = game:GetService("TweenService")
+local GuiService = game:GetService("GuiService")
+
+-- 检查是否已存在悬浮窗，避免重复生成
+if LocalPlayer:WaitForChild("PlayerGui"):FindFirstChild("FloatingWindow") then
+    return -- 如果已存在，直接退出
+end
+
+-- 创建ScreenGui
+local screenGui = Instance.new("ScreenGui")
+screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+screenGui.ResetOnSpawn = false
+screenGui.Name = "FloatingWindow"
+screenGui.IgnoreGuiInset = true -- 适配屏幕安全区域
+
+-- 创建悬浮窗（白色圆角正方形）
+local floatingFrame = Instance.new("Frame")
+floatingFrame.Size = UDim2.new(0, 50, 0, 50)
+floatingFrame.Position = UDim2.new(0, 100, 0, 100) -- 默认位置
+floatingFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255) -- 白色背景
+floatingFrame.BorderSizePixel = 0 -- 移除默认描边
+floatingFrame.ClipsDescendants = true
+floatingFrame.Name = "FloatingFrame"
+floatingFrame.Active = true -- 启用交互
+floatingFrame.Parent = screenGui
+
+-- 添加圆角效果
+local uiCorner = Instance.new("UICorner")
+uiCorner.CornerRadius = UDim.new(0, 8)
+uiCorner.Parent = floatingFrame
+
+-- 创建红色描边（使用UIStroke）
+local uiStroke = Instance.new("UIStroke")
+uiStroke.Color = Color3.fromRGB(255, 0, 0) -- 红色描边
+uiStroke.Thickness = 2 -- 2像素描边
+uiStroke.Parent = floatingFrame
+
+-- 创建红色“Z”文字
+local zText = Instance.new("TextLabel")
+zText.Size = UDim2.new(1, 0, 1, 0)
+zText.BackgroundTransparency = 1
+zText.Text = "Z"
+zText.TextColor3 = Color3.fromRGB(255, 0, 0) -- 红色文字
+zText.TextScaled = true
+zText.Font = Enum.Font.SourceSansBold
+zText.TextSize = 24
+zText.Parent = floatingFrame
+
+-- 创建黑色UI面板
+local panelFrame = Instance.new("Frame")
+panelFrame.Size = UDim2.new(0, 460, 0, 320)
+panelFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0) -- 黑色背景
+panelFrame.BorderSizePixel = 0
+panelFrame.ClipsDescendants = true
+panelFrame.Name = "PanelFrame"
+panelFrame.Active = true -- 启用交互
+panelFrame.Visible = false -- 默认隐藏
+panelFrame.Parent = screenGui
+local panelCorner = Instance.new("UICorner")
+panelCorner.CornerRadius = UDim.new(0, 12)
+panelCorner.Parent = panelFrame
+-- 添加红色描边（UI面板）
+local panelStroke = Instance.new("UIStroke")
+panelStroke.Color = Color3.fromRGB(255, 0, 0) -- 红色描边
+panelStroke.Thickness = 2 -- 2像素描边
+panelStroke.Parent = panelFrame
+
+-- 创建减号按钮
+local minusButton = Instance.new("TextButton")
+minusButton.Size = UDim2.new(0, 30, 0, 30)
+minusButton.Position = UDim2.new(1, -40, 0, 10) -- 右上角，距离右边和顶部10像素
+minusButton.BackgroundColor3 = Color3.fromRGB(128, 128, 128) -- 灰色背景
+minusButton.Text = "-"
+minusButton.TextColor3 = Color3.fromRGB(255, 255, 255) -- 白色文字
+minusButton.TextScaled = true
+minusButton.Font = Enum.Font.SourceSansBold
+minusButton.TextSize = 20
+minusButton.Parent = panelFrame
+local buttonCorner = Instance.new("UICorner")
+buttonCorner.CornerRadius = UDim.new(0, 6)
+buttonCorner.Parent = minusButton
+
+-- 拖动功能变量（悬浮窗）
+local dragging = false
+local dragStart = nil
+local startPos = nil
+local inputStartTime = nil
+local inputStartPos = nil
+
+-- 拖动功能变量（面板）
+local panelDragging = false
+local panelDragStart = nil
+local panelStartPos = nil
+
+-- 动画设置
+local tweenInfoFloat = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out) -- 悬浮窗拖动动画
+local tweenInfoClick = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out) -- 悬浮窗点击放大淡出/淡入
+local tweenInfoPanel = TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out) -- 面板弹出/滑出
+
+-- 悬浮窗拖动开始
+floatingFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = floatingFrame.Position
+        inputStartTime = tick() -- 记录按下时间
+        inputStartPos = input.Position -- 记录按下位置
+
+        -- 放大动画
+        local tween = TweenService:Create(floatingFrame, tweenInfoFloat, {
+            Size = UDim2.new(0, 55, 0, 55)
+        })
+        local strokeTween = TweenService:Create(uiStroke, tweenInfoFloat, {
+            Thickness = 3
+        })
+        local textTween = TweenService:Create(zText, tweenInfoFloat, {
+            TextSize = 26
+        })
+        tween:Play()
+        strokeTween:Play()
+        textTween:Play()
+    end
+end)
+
+-- 悬浮窗和面板拖动
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        floatingFrame.Position = UDim2.new(
+            startPos.X.Scale,
+            startPos.X.Offset + delta.X,
+            startPos.Y.Scale,
+            startPos.Y.Offset + delta.Y
+        )
+    elseif panelDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - panelDragStart
+        panelFrame.Position = UDim2.new(
+            panelStartPos.X.Scale,
+            panelStartPos.X.Offset + delta.X,
+            panelStartPos.Y.Scale,
+            panelStartPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
+-- 拖动结束或点击检测
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        if dragging then
+            dragging = false
+            -- 恢复原始大小动画
+            local tween = TweenService:Create(floatingFrame, tweenInfoFloat, {
+                Size = UDim2.new(0, 50, 0, 50)
+            })
+            local strokeTween = TweenService:Create(uiStroke, tweenInfoFloat, {
+                Thickness = 2
+            })
+            local textTween = TweenService:Create(zText, tweenInfoFloat, {
+                TextSize = 24
+            })
+            tween:Play()
+            strokeTween:Play()
+            textTween:Play()
+
+            -- 检查是否为点击（时长<0.3秒，移动距离<10像素）
+            local duration = tick() - inputStartTime
+            local distance = (input.Position - inputStartPos).Magnitude
+            if duration < 0.3 and distance < 10 then
+                -- 放大并淡出动画
+                local tween = TweenService:Create(floatingFrame, tweenInfoClick, {
+                    Size = UDim2.new(0, 60, 0, 60),
+                    BackgroundTransparency = 1
+                })
+                local strokeTween = TweenService:Create(uiStroke, tweenInfoClick, {
+                    Transparency = 1 -- 描边淡出
+                })
+                local textTween = TweenService:Create(zText, tweenInfoClick, {
+                    TextTransparency = 1 -- 文字淡出
+                })
+                tween:Play()
+                strokeTween:Play()
+                textTween:Play()
+
+                -- 动画完成后隐藏悬浮窗并弹出面板
+                tween.Completed:Connect(function()
+                    floatingFrame.Visible = false
+                    floatingFrame.BackgroundTransparency = 0
+                    zText.TextTransparency = 0
+                    uiStroke.Transparency = 0 -- 重置描边透明度
+                    uiStroke.Thickness = 2 -- 重置描边厚度
+
+                    -- 随机选择弹出方向（上、下、左、右）
+                    local directions = {"Top", "Bottom", "Left", "Right"}
+                    local direction = directions[math.random(1, 4)]
+                    local screenSize = GuiService:GetScreenResolution()
+                    local startPos
+
+                    if direction == "Top" then
+                        startPos = UDim2.new(0.5, -230, -0.5, -320) -- 从顶部滑入
+                    elseif direction == "Bottom" then
+                        startPos = UDim2.new(0.5, -230, 1.5, 320) -- 从底部滑入
+                    elseif direction == "Left" then
+                        startPos = UDim2.new(-0.5, -460, 0.5, -160) -- 从左侧滑入
+                    elseif direction == "Right" then
+                        startPos = UDim2.new(1.5, 460, 0.5, -160) -- 从右侧滑入
+                    end
+
+                    -- 设置面板初始位置并显示
+                    panelFrame.Position = startPos
+                    panelFrame.BackgroundTransparency = 0
+                    panelFrame.Visible = true
+
+                    -- 弹出到屏幕中心动画
+                    local tweenPanel = TweenService:Create(panelFrame, tweenInfoPanel, {
+                        Position = UDim2.new(0.5, -230, 0.5, -160) -- 屏幕中心
+                    })
+                    tweenPanel:Play()
+                end)
+            end
+        elseif panelDragging then
+            panelDragging = false
+        end
+    end
+end)
+
+-- 面板拖动开始
+panelFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        panelDragging = true
+        panelDragStart = input.Position
+        panelStartPos = panelFrame.Position
+    end
+end)
+
+-- 点击减号按钮：面板滑出，悬浮窗淡入
+minusButton.MouseButton1Click:Connect(function()
+    -- 随机选择滑出方向（上、下、左、右）
+    local directions = {"Top", "Bottom", "Left", "Right"}
+    local direction = directions[math.random(1, 4)]
+    local screenSize = GuiService:GetScreenResolution()
+    local endPos
+
+    if direction == "Top" then
+        endPos = UDim2.new(0.5, -230, -0.5, -320) -- 滑向顶部
+    elseif direction == "Bottom" then
+        endPos = UDim2.new(0.5, -230, 1.5, 320) -- 滑向底部
+    elseif direction == "Left" then
+        endPos = UDim2.new(-0.5, -460, 0.5, -160) -- 滑向左侧
+    elseif direction == "Right" then
+        endPos = UDim2.new(1.5, 460, 0.5, -160) -- 滑向右侧
+    end
+
+    -- 面板滑出动画
+    local tweenPanel = TweenService:Create(panelFrame, tweenInfoPanel, {
+        Position = endPos
+    })
+    tweenPanel:Play()
+
+    -- 悬浮窗淡入动画
+    floatingFrame.Visible = true
+    floatingFrame.Size = UDim2.new(0, 60, 0, 60) -- 从放大状态开始
+    floatingFrame.BackgroundTransparency = 1
+    uiStroke.Transparency = 1
+    zText.TextTransparency = 1
+
+    local tweenFloat = TweenService:Create(floatingFrame, tweenInfoClick, {
+        Size = UDim2.new(0, 50, 0, 50),
+        BackgroundTransparency = 0
+    })
+    local strokeTween = TweenService:Create(uiStroke, tweenInfoClick, {
+        Transparency = 0,
+        Thickness = 2
+    })
+    local textTween = TweenService:Create(zText, tweenInfoClick, {
+        TextTransparency = 0
+    })
+    tweenFloat:Play()
+    strokeTween:Play()
+    textTween:Play()
+
+    -- 面板滑出后隐藏
+    tweenPanel.Completed:Connect(function()
+        panelFrame.Visible = false
+    end)
+end)
